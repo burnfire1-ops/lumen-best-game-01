@@ -4,9 +4,19 @@
 // so the caller can react without the world knowing about screens or sound. Nothing here
 // allocates after createWorld returns: every list is a fixed pool.
 import {
-  BANDS, FIELD, FIREFLY, GAP, LIGHT, PALETTES, POWER, SPEED, STEP, WIN_SCORE,
+  BANDS, FIELD, FIREFLY, GAP, HIDDEN, LIGHT, PALETTES, POWER, SPACING, SPEED, STEP, WIN_SCORE,
 } from './config.js';
 import { createFirefly } from './firefly.js';
+
+/** Reveal alpha for a hidden trap at a horizontal distance from the firefly:
+ * near-invisible (dimAlpha) beyond HIDDEN.reveal, fully lit (1.0) within 100 px,
+ * fading linearly in between. At max speed (260 px/s) the reveal starts ~1.1 s
+ * before the firefly reaches the gap; at base speed ~2 s. */
+export function hiddenAlpha(distance) {
+  if (distance >= HIDDEN.reveal) return HIDDEN.dimAlpha;
+  if (distance <= 100) return 1;
+  return HIDDEN.dimAlpha + (1 - HIDDEN.dimAlpha) * (HIDDEN.reveal - distance) / (HIDDEN.reveal - 100);
+}
 
 export const EVENT_SCORE = 1;
 export const EVENT_ORB = 2;
@@ -47,7 +57,7 @@ export function createWorld(random) {
     gaps.push({
       active: false, x: 0, gapY: 0, gapH: 0, passed: false, id: 0,
       trap: '', trapState: 0, trapT: 0, dropY: 0, dropVy: 0,
-      snapY: 0, windDir: 0, narrowFrom: 0, narrowTo: 0,
+      snapY: 0, windDir: 0, narrowFrom: 0, narrowTo: 0, hiddenY: 0,
     });
   }
   const vines = [];
@@ -84,7 +94,7 @@ export function createWorld(random) {
   let gapNumber = 0;
   let bandIndex = -1;
   let guaranteeAt = {};
-  let gapSpacing = GAP.spacing;
+  let gapSpacing = SPACING[0][0];
   let overSent = false;
 
   function speed() {
@@ -151,6 +161,10 @@ export function createWorld(random) {
       planBand(band);
     }
     const def = BANDS[band];
+    // Roll this gap's spacing from its band's range: it is the distance from
+    // this gap to the next one, so the cursor advances by it below (and the
+    // vine between them sits at 65% of it). Hard floor 240 px.
+    gapSpacing = Math.max(240, random.range(SPACING[band][0], SPACING[band][1]));
     gap.active = true;
     gap.x = nextGapX;
     gap.id = gapNumber;
@@ -176,6 +190,14 @@ export function createWorld(random) {
     if (gap.trap === 'drop') {
       gap.dropY = gap.gapY - gap.gapH / 2 - 110;
       gap.dropVy = 0;
+    }
+    if (gap.trap === 'hidden') {
+      // Thorn cluster near the top or bottom edge of the gap (random side), so the
+      // opposite side stays a wide clear path: the cluster nestles against the
+      // mushroom, and the clear side (gapH - 50 px) always fits the firefly's
+      // flap rise (~65 px) with room to spare.
+      const side = random.chance(0.5) ? 1 : -1;
+      gap.hiddenY = gap.gapY + side * (gap.gapH / 2 - 16);
     }
     nextGapX += gapSpacing;
 
@@ -474,6 +496,18 @@ export function createWorld(random) {
         // The extended bar of a snap trap.
         if (gap.trap === 'snap' && gap.trapState === 2) {
           if (circleHitsRect(body.x, body.y, body.radius, gap.x - 70, gap.snapY - 9, 140, 18)) {
+            if (firefly.hit()) {
+              state.shake = 0.35;
+              burst(body.x, body.y, 16, '#f2c94c', 200);
+              events |= EVENT_OVER;
+              return events;
+            }
+            events |= EVENT_HIT;
+          }
+        }
+        // The hidden thorn cluster: a circle at its centre, live from spawn.
+        if (gap.trap === 'hidden') {
+          if (circleHitsCircle(body.x, body.y, body.radius, gap.x, gap.hiddenY, HIDDEN.radius)) {
             if (firefly.hit()) {
               state.shake = 0.35;
               burst(body.x, body.y, 16, '#f2c94c', 200);

@@ -20,7 +20,17 @@ export const FIREFLY = {
 export const SPEED = { base: 140, perPoint: 4, cap: 260 };
 
 /** Mushroom gap: starting height, shrink per point, floor. */
-export const GAP = { height: 170, shrinkPerPoint: 2, floor: 120, width: 74, spacing: 330 };
+export const GAP = { height: 170, shrinkPerPoint: 2, floor: 120, width: 74 };
+
+/** Horizontal gap spacing per band: [min, max] px, rolled per gap with the
+ * seeded RNG. The rhythm varies and tightens as the score rises; never below
+ * 240 px. */
+export const SPACING = [
+  [320, 400], // 0-5: roomy, for learning
+  [300, 360], // 5-10
+  [280, 340], // 10-20
+  [260, 320], // 20+: tightest
+];
 
 /** Light meter: 0..1. Full meter lasts LIGHT.fullSeconds without an orb. */
 export const LIGHT = { fullSeconds: 25, orbRefill: 0.25, drain: 1 / 25 };
@@ -29,9 +39,13 @@ export const LIGHT = { fullSeconds: 25, orbRefill: 0.25, drain: 1 / 25 };
 export const BANDS = [
   { from: 0, to: 5, traps: [] },
   { from: 5, to: 10, guarantee: ['drop'], extraChance: 0.3, extra: ['drop'] },
-  { from: 10, to: 20, guarantee: ['snap', 'wind'], extraChance: 0.4, extra: ['drop', 'narrow', 'snap', 'wind'] },
-  { from: 20, to: 9999, guarantee: [], extraChance: 0.65, extra: ['drop', 'narrow', 'snap', 'wind'] },
+  { from: 10, to: 20, guarantee: ['snap', 'wind'], extraChance: 0.4, extra: ['drop', 'narrow', 'snap', 'wind', 'hidden'] },
+  { from: 20, to: 9999, guarantee: [], extraChance: 0.65, extra: ['drop', 'narrow', 'snap', 'wind', 'hidden'] },
 ];
+
+/** Hidden-in-dark trap: the distance at which the glow starts revealing it,
+ * the collision radius, and the alpha when it is still far away. */
+export const HIDDEN = { reveal: 280, radius: 20, dimAlpha: 0.12 };
 
 /** Power-ups: how often one appears, and how long each lasts. */
 export const POWER = {

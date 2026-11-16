@@ -1,16 +1,18 @@
-// The screenshot scenes behind ?shot=start|play|trap|end. Each one plays the real rules
+// The screenshot scenes behind ?shot=start|play|trap|end|win. Each one plays the real rules
 // forward from a fresh world for a fixed number of steps, steered by an autopilot that aims
 // for the centre of the next gap, so the frame is what a short game really looks like and
 // the same seed always gives the same frame. The play pilot is careful; the end pilot flaps
-// late, so it is caught out once the gaps speed up, as a hurried player is.
+// late, so it is caught out once the gaps speed up, as a hurried player is. The win shot
+// starts one point from the Dawn (score 49) and plays until the win fires.
 import { FIELD, STEP } from './config.js';
-import { EVENT_OVER } from './world.js';
-import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
+import { EVENT_OVER, EVENT_WIN } from './world.js';
+import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE, SCREEN_WIN } from './render.js';
 
 const START_SECONDS = 5;
 const PLAY_SECONDS = 24;
 const TRAP_SECONDS = 32;
 const END_LIMIT_SECONDS = 120;
+const WIN_LIMIT_SECONDS = 30;
 
 /** How far below the gap centre the pilot lets the firefly sink before flapping. 25 puts the
  * 65 px hover band inside the safe zone of even the narrowest gap: the band is [centre-40,
@@ -67,11 +69,25 @@ function autopilot(state, margin) {
 }
 
 /**
- * Set `world` to the named scene (start, play, trap or end; any other name is start) and
- * return the screen to draw over it and the best score to show.
+ * Set `world` to the named scene (start, play, trap, end or win; any other name is start)
+ * and return the screen to draw over it and the best score to show.
  */
 export function stageShot(name, world) {
   world.reset();
+  if (name === 'win') {
+    // One point from the Dawn: play forward until the win fires (or the limit is hit).
+    // Traps are cleared while staging so the pilot only has to fly; the win panel and
+    // the dawn background are the subject, and the world still renders for real.
+    world.state.score = 49;
+    let won = false;
+    for (let index = 0; index < WIN_LIMIT_SECONDS / STEP; index += 1) {
+      for (const gap of world.state.gaps) gap.trap = '';
+      const events = world.step(STEP, autopilot(world.state, MARGIN_PLAY), false);
+      if (events & EVENT_WIN) { won = true; break; }
+      if (events & EVENT_OVER) break;
+    }
+    return { screen: won ? SCREEN_WIN : SCREEN_PLAY, best: world.state.score };
+  }
   if (name !== 'play' && name !== 'trap' && name !== 'end') {
     for (let index = 0; index < START_SECONDS / STEP; index += 1) world.step(STEP, false, true);
     return { screen: SCREEN_TITLE, best: 0 };

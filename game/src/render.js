@@ -3,7 +3,8 @@
 // colour. The firefly's glow is a radial gradient; mushrooms, vines and orbs are flat canvas
 // shapes with a soft glow. The HUD is variant B: the score on a glowing mushroom cap, the
 // light meter as a hanging lantern, the best on a wooden sign, and a small round pause button.
-import { FIELD, FONT, GAP, PALETTES, WIN_SCORE } from './config.js';
+import { FIELD, FONT, GAP, HIDDEN, PALETTES, WIN_SCORE } from './config.js';
+import { hiddenAlpha } from './world.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -152,7 +153,7 @@ export function createRenderer(canvas) {
     text(gap.windDir > 0 ? '▼ angin' : '▲ angin', gap.x, gap.gapY - 150, 18, palette.text, 'center', '600');
   }
 
-  function drawGap(gap, palette) {
+  function drawGap(gap, palette, fireflyX) {
     const top = gap.gapY - gap.gapH / 2;
     const bottom = gap.gapY + gap.gapH / 2;
     const stemW = GAP.width - 26;
@@ -209,6 +210,39 @@ export function createRenderer(canvas) {
       }
     }
     if (gap.trap === 'wind') drawWind(gap, palette);
+    if (gap.trap === 'hidden') {
+      // A thorn cluster hidden in the dark: near-invisible while far away, fading
+      // in with a gold glow as the firefly's light reaches it, in time to react.
+      const alpha = hiddenAlpha(Math.max(0, gap.x - fireflyX));
+      const revealed = alpha > 0.6;
+      context.save();
+      context.globalAlpha = alpha;
+      if (revealed) {
+        context.shadowColor = '#fde047';
+        context.shadowBlur = 16;
+      }
+      context.fillStyle = '#171233';
+      context.strokeStyle = revealed ? '#fde047' : '#3b2a63';
+      context.lineWidth = 1.5;
+      for (let i = 0; i < 5; i += 1) {
+        const angle = -Math.PI / 2 + i * (Math.PI * 2 / 5);
+        const tipX = gap.x + Math.cos(angle) * HIDDEN.radius;
+        const tipY = gap.hiddenY + Math.sin(angle) * HIDDEN.radius;
+        const baseA = angle + 0.3;
+        const baseB = angle - 0.3;
+        context.beginPath();
+        context.moveTo(tipX, tipY);
+        context.lineTo(gap.x + Math.cos(baseA) * 9, gap.hiddenY + Math.sin(baseA) * 9);
+        context.lineTo(gap.x + Math.cos(baseB) * 9, gap.hiddenY + Math.sin(baseB) * 9);
+        context.closePath();
+        context.fill();
+        context.stroke();
+      }
+      context.restore();
+      if (revealed) {
+        text('!', gap.x, gap.hiddenY - HIDDEN.radius - 14, 26, '#fde047', 'center', '700');
+      }
+    }
   }
 
   function drawVine(vine, palette) {
@@ -418,7 +452,7 @@ export function createRenderer(canvas) {
     }
   }
 
-  function drawPanel(title, lines, prompt, accent) {
+  function drawPanel(title, lines, prompt, accent, titleSize = 46) {
     const height = 150 + lines.length * PANEL.line + 90;
     const x = (FIELD.width - PANEL.width) / 2;
     const y = (FIELD.height - height) / 2;
@@ -431,7 +465,7 @@ export function createRenderer(canvas) {
     context.roundRect(x, y, PANEL.width, height, 18);
     context.fill();
     context.restore();
-    glowText(title, FIELD.width / 2, y + 74, 46, '#fef9c3', accent || '#f2c94c');
+    glowText(title, FIELD.width / 2, y + 74, titleSize, '#fef9c3', accent || '#f2c94c');
     for (let i = 0; i < lines.length; i += 1) {
       text(lines[i], FIELD.width / 2, y + 140 + i * PANEL.line, 22, '#e2e8f0', 'center');
     }
@@ -474,7 +508,15 @@ export function createRenderer(canvas) {
       '',
       'Fajar terbit. Hutan kembali terang.',
     ];
-    drawPanel('FAJAR TIBA', lines, 'Klik TERUS TERBANG untuk lanjut, atau tekan R untuk main lagi', '#fbbf24');
+    // Fit the full win title inside the panel: shrink from 46 until it fits.
+    const winTitle = 'FAJAR TIBA, Kamu Sampai!';
+    let titleSize = 46;
+    context.font = font(titleSize, '700');
+    while (titleSize > 32 && context.measureText(winTitle).width > PANEL.width - 40) {
+      titleSize -= 2;
+      context.font = font(titleSize, '700');
+    }
+    drawPanel(winTitle, lines, 'Klik TERUS TERBANG untuk lanjut, atau tekan R untuk main lagi', '#fbbf24', titleSize);
     // The two buttons.
     context.save();
     context.fillStyle = '#65a30d';
@@ -501,7 +543,7 @@ export function createRenderer(canvas) {
     context.setTransform(view.scale, 0, 0, view.scale, view.x + shakeX * view.scale, view.y + shakeY * view.scale);
     drawBackground(state);
     for (const gap of state.gaps) {
-      if (gap.active) drawGap(gap, palette);
+      if (gap.active) drawGap(gap, palette, state.firefly.x);
     }
     for (const vine of state.vines) {
       if (vine.active) drawVine(vine, palette);
