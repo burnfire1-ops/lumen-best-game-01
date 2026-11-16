@@ -39,7 +39,7 @@ export const LIGHT = { fullSeconds: 25, orbRefill: 0.25, drain: 1 / 25 };
 export const BANDS = [
   { from: 0, to: 5, traps: [] },
   { from: 5, to: 10, guarantee: ['drop'], extraChance: 0.3, extra: ['drop'] },
-  { from: 10, to: 20, guarantee: ['snap', 'wind'], extraChance: 0.4, extra: ['drop', 'narrow', 'snap', 'wind', 'hidden'] },
+  { from: 10, to: 20, guarantee: ['snap', 'wind'], extraChance: 0.4, extra: ['drop', 'narrow', 'snap', 'wind'] },
   { from: 20, to: 9999, guarantee: [], extraChance: 0.65, extra: ['drop', 'narrow', 'snap', 'wind', 'hidden'] },
 ];
 
